@@ -1,7 +1,10 @@
 [package]
+authors = ["Vikram Auradkar <vikram.auradkar@gmail.com>"]
 edition = "2024"
+license = "MIT OR Apache-2.0"
 name = "pfs"
-version = "0.1.0"
+rust-version = "1.91.1"
+version = "0.2.0"
 
 [features]
 poem = ["poem-openapi"]
