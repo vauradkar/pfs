@@ -13,5 +13,11 @@ pub use dir::DirectoryEntry;
 pub use dir_list::RecursiveDirList;
 pub use errors::Error;
 pub use file::FileInfo;
+pub use file::FileNode;
 pub use file::FileStat;
 pub use path::Path;
+
+#[cfg(feature = "test_utils")]
+pub(crate) mod test_utils;
+#[cfg(feature = "test_utils")]
+pub use test_utils::TestRoot;

@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [features]
 poem = ["poem-openapi"]
+test_utils = ["async-walkdir", "futures-lite", "similar", "tempdir"]
 
 [lints.rust]
 missing_docs = { level = "warn" }
@@ -13,9 +14,16 @@ unsafe_code = { level = "warn" }
 
 [dependencies]
 async-fs = { version = "2.2.0" }
+async-walkdir = { version = "2.1.0", optional = true }
 chrono = { version = "0.4.41" }
+futures-lite = { version = "2.6.1", optional = true }
 poem-openapi = { version = "5.1.16", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 sha2 = "0.10.9"
+similar = { version = "2.7.0", optional = true }
+tempdir = { version = "0.3.7", optional = true }
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+pfs = { path = ".", features = ["test_utils"] }

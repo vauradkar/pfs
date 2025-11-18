@@ -82,3 +82,28 @@ pub struct FileInfo {
     /// Metadata if the file exists.
     pub stats: FileStat,
 }
+
+/// Akin to inode, represents the a file or directory, including its path, size,
+/// modification time, type and contents.
+#[cfg_attr(feature = "poem", derive(Object))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
+pub struct FileNode {
+    /// The metadata of the file or directory.
+    pub stats: FileStat,
+    /// The contents of the file. Empty for directories.
+    pub contents: Vec<u8>,
+}
+
+impl FileNode {
+    /// Creates a new `FileNode` instance with the specified metadata and
+    /// contents.
+    pub fn new(stats: FileStat, contents: Vec<u8>) -> Self {
+        Self { stats, contents }
+    }
+}
+
+impl From<(FileStat, Vec<u8>)> for FileNode {
+    fn from(tuple: (FileStat, Vec<u8>)) -> Self {
+        Self::new(tuple.0, tuple.1)
+    }
+}
