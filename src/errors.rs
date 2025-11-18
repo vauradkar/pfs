@@ -1,11 +1,8 @@
-#[cfg(feature = "poem")]
-use poem_openapi::Object;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
 /// Represents all possible errors in the shlib crate.
-#[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Error, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub enum Error {
     /// Error indicating a failure to read data.
