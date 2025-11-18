@@ -18,7 +18,7 @@ use crate::utils::format_system_time;
 /// Represents the metadata of a file or directory, including its path, size,
 /// modification time, and type.
 #[cfg_attr(feature = "poem", derive(Object))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileStat {
     /// The size of the file in bytes. For directories, this may be zero or
     /// implementation-defined.
@@ -66,10 +66,10 @@ impl FileStat {
     }
 }
 
-#[cfg_attr(feature = "poem", derive(Object))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Represents the contents of a directory, including the current path and its
 /// items.
+#[cfg_attr(feature = "poem", derive(Object))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileInfo {
     /// The full path of the file.
     pub path: Path,

@@ -1,9 +1,10 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use thiserror::Error;
 
 /// Represents all possible errors in the shlib crate.
-#[cfg_attr(feature = "poem", derive())]
-#[derive(Error, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "poem", derive(Object))]
+#[derive(Error, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub enum Error {
     /// Error indicating a failure to read data.
     #[error("Failed to read {what}: {how}")]

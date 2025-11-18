@@ -31,7 +31,7 @@ where
 
 /// Represents a filesystem path as a vector of its portable components.
 #[cfg_attr(feature = "poem", derive(Object))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct Path {
     /// The components of the portable path as a vector of strings.
     #[serde(deserialize_with = "deserialize_components")]
