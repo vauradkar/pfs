@@ -1,3 +1,4 @@
+//! A helper modeule to build sha256 strings
 use std::path::Path;
 
 use sha2::Digest;
@@ -7,17 +8,37 @@ use tokio::io::AsyncReadExt;
 
 use crate::errors::Error;
 
-pub(crate) trait Sha256Builder {
-    async fn sha256_build(&self) -> Result<Sha256, Error>;
+/// Trait for constructing a `Sha256` digest context from various inputs.
+///
+/// Implementors provide an async method to build an initialized `Sha256`
+/// context. A default helper `sha256_update` is provided which updates the
+/// context with a slice of bytes.
+pub trait Sha256Builder {
+    /// Build and return a `Sha256` digest context for `self`.
+    fn sha256_build(&self) -> impl std::future::Future<Output = Result<Sha256, Error>> + Send;
 
-    async fn sha256_update(&self, data: &[u8], context: &mut Sha256) -> Result<(), Error> {
-        context.update(data);
-        Ok(())
+    /// Update the provided `context` with `data` bytes.
+    ///
+    /// This default implementation simply feeds `data` into the context and
+    /// returns `Ok(())`. Implementors may override it if special handling is
+    /// required.
+    fn sha256_update(
+        &self,
+        data: &[u8],
+        context: &mut Sha256,
+    ) -> impl std::future::Future<Output = Result<(), Error>> + Send {
+        async move {
+            context.update(data);
+            Ok(())
+        }
     }
 }
 
-pub(crate) trait Sha256String {
-    async fn sha256_string(self) -> Result<String, Error>;
+/// Convert a completed `Sha256` digest context into a hex-encoded string.
+pub trait Sha256String {
+    /// Consume the `Sha256` context and return the hex string representation
+    /// of the digest (lowercase hex).
+    fn sha256_string(self) -> impl std::future::Future<Output = Result<String, Error>> + Send;
 }
 
 impl Sha256String for Sha256 {
@@ -50,6 +71,8 @@ impl Sha256Builder for &Path {
     }
 }
 
+/// `Sha256Builder` implementation for byte slices. Builds a digest context
+/// from the provided in-memory bytes.
 impl Sha256Builder for &[u8] {
     async fn sha256_build(&self) -> Result<Sha256, Error> {
         let mut context = Sha256::new();
@@ -57,3 +80,5 @@ impl Sha256Builder for &[u8] {
         Ok(context)
     }
 }
+
+// (impl for &[u8] moved above with documentation)

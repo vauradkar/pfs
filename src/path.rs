@@ -39,6 +39,8 @@ pub struct Path {
 }
 
 impl Display for Path {
+    /// Format the portable `Path` for display by converting it into a
+    /// platform `PathBuf` and delegating to its display implementation.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let path: PathBuf = self.into();
         write!(f, "{}", path.display())
@@ -52,6 +54,11 @@ impl Path {
         self.components.last().map(|s| s.as_str())
     }
 
+    /// Retrieve the `FileStat` for this portable path.
+    ///
+    /// This will convert the portable path into a `PathBuf` and check for the
+    /// file's existence. If the path exists the file metadata is returned as
+    /// a `FileStat`, otherwise an `Error::InvalidPath` is returned.
     async fn get_file_stat(&self) -> Result<FileStat, Error> {
         let path: PathBuf = self.into();
         if path.exists() {
@@ -119,6 +126,11 @@ where
 {
     type Error = Error;
 
+    /// Attempt to build a `Path` from a slice of components.
+    ///
+    /// Each component is validated to not contain directory separators and to
+    /// not equal `.` or `..`. Returns `Error::InvalidArgument` on invalid
+    /// components.
     fn try_from(components: &[T]) -> std::result::Result<Self, Self::Error> {
         let mut c = Vec::new();
         for comp in components {
@@ -142,6 +154,10 @@ where
 impl TryFrom<&PathBuf> for Path {
     type Error = Error;
 
+    /// Convert a `PathBuf` into the portable `Path` representation.
+    ///
+    /// This will reject paths that are just `.` or `..` and will strip root
+    /// components. Non-UTF8 components will be skipped.
     fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
         let str = path.to_string_lossy();
         if str == "." || str == ".." {
@@ -165,6 +181,10 @@ impl TryFrom<&PathBuf> for Path {
 }
 
 impl From<&Path> for PathBuf {
+    /// Convert the portable `Path` into a platform `PathBuf`.
+    ///
+    /// Components that are `.` or `..` are ignored to produce a clean
+    /// `PathBuf` suitable for filesystem operations.
     fn from(portable: &Path) -> Self {
         let mut path = PathBuf::new();
         for comp in &portable.components {

@@ -55,6 +55,12 @@ impl FileStat {
         }
     }
 
+    /// Create a `FileStat` from a `Metadata` value and an optional sha256.
+    ///
+    /// This helper extracts the file size, modification time and directory
+    /// flag from the provided metadata and formats the modification time
+    /// using `format_system_time`. The optional `sha256` can be set to `None`
+    /// for directories or omitted values.
     fn from_metadata(metadata: &Metadata, sha256: Option<String>) -> Self {
         let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
         FileStat {
