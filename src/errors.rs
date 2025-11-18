@@ -1,3 +1,5 @@
+#[cfg(feature = "poem")]
+use poem_openapi::Object;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
