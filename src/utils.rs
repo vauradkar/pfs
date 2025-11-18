@@ -1,7 +1,8 @@
 //! A collection of utility functions
 use std::time::SystemTime;
 
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
+use chrono::Utc;
 
 use crate::errors::Error;
 
@@ -20,4 +21,28 @@ pub fn parse_system_time(s: &str) -> Result<SystemTime, Error> {
         how: e.to_string(),
     })?;
     Ok(SystemTime::from(datetime))
+}
+
+/// Formats a file size in bytes into a human-readable string (e.g., KB, MB).
+///
+/// # Arguments
+/// * `size` - The file size in bytes.
+///
+/// # Returns
+/// * `String` - The formatted file size.
+pub fn format_file_size(size: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = size as f64;
+    let mut unit_index = 0;
+
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+
+    if unit_index == 0 {
+        format!("{} {}", size as u64, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
 }

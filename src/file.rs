@@ -107,3 +107,16 @@ impl From<(FileStat, Vec<u8>)> for FileNode {
         Self::new(tuple.0, tuple.1)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path() {
+        let path = Path::try_from(["dir1", "dir2", "file.txt"].as_slice()).unwrap();
+        let s = "{\"components\":[\"dir1\",\"dir2\",\"file.txt\"]}";
+        assert_eq!(s, &serde_json::to_string(&path).unwrap());
+        assert_eq!(path, serde_json::from_str(s).unwrap());
+    }
+}

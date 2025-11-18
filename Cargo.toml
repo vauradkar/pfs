@@ -1,8 +1,13 @@
 [package]
 authors = ["Vikram Auradkar <vikram.auradkar@gmail.com>"]
+description = "A portable, crass-platform, serializable representation of contained file system"
 edition = "2024"
+homepage = "https://github.com/vauradkar/pfs"
+keywords = ["archive", "cross-platform", "filesystem", "portable", "serialization", "virtual-fs"]
 license = "MIT OR Apache-2.0"
 name = "pfs"
+readme = "README.md"
+repository = "https://github.com/vauradkar/pfs"
 rust-version = "1.91.1"
 version = "0.2.0"
 
@@ -33,3 +38,4 @@ tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-t
 
 [dev-dependencies]
 pfs = { path = ".", features = ["test_utils"] }
+serde_json = { version = "1.0.145" }

@@ -1,2 +1,3 @@
 # pfs
-A portable, crass-platform, serializable reprentation of file system
+
+A portable, crass-platform, serializable representation of file system

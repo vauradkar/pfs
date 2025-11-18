@@ -83,16 +83,16 @@ impl PortableFs {
         full_path
     }
 
-    /// Browses the contents of the given directory path and returns its
+    /// Read the contents of the given directory path and returns its
     /// entries.
     ///
     /// # Arguments
-    /// * `current_path` - The path to the directory to browse.
+    /// * `path` - The path to the directory to browse.
     ///
     /// # Returns
-    /// * `Result<DirectoryEntries, Error>` - The directory entries or an error
+    /// * `Result<Directory, Error>` - The directory entries or an error
     ///   message.
-    pub async fn browse_path(&self, path: &Path) -> Result<Directory, Error> {
+    pub async fn read_dir(&self, path: &Path) -> Result<Directory, Error> {
         let full_path = self.as_abs_path(path);
         let mut items = Vec::new();
         for item in DirWalker::walk_dir(
@@ -120,16 +120,16 @@ impl PortableFs {
         })
     }
 
-    /// Recursively walks directory `path`` and returns files and their metadata
+    /// Recursively walks directory `path` and returns files and their metadata
     /// under the directory tree.
     ///
     /// # Arguments
     /// * `path` - The path to the directory to browse.
     ///
     /// # Returns
-    /// * `Result<DirectoryEntries, Error>` - The directory entries or an error
+    /// * `Result<Vec<FileInfo>, Error>` - The directory entries or an error
     ///   message.
-    pub async fn recurse_path(&self, path: &Path) -> Result<Vec<FileInfo>, Error> {
+    pub async fn read_dir_recurse(&self, path: &Path) -> Result<Vec<FileInfo>, Error> {
         DirWalker::walk_dir(
             self.as_abs_path(path),
             self.base_dir.clone(),
@@ -146,6 +146,8 @@ impl PortableFs {
     /// # Arguments
     /// * `tx` - The channel sender to transmit FileInfo objects.
     /// * `delta` - The DeltaRequest containing the destination path to recurse.
+    /// * `chunk_size` - max size of a chunk before it is sent across the
+    ///   channel
     pub async fn exchange_deltas(
         &self,
         tx: Sender<Vec<FileInfo>>,
@@ -198,6 +200,7 @@ impl PortableFs {
     /// * `path` - The path to the file to write.
     /// * `data` - The data to write to the file.
     /// * `overwrite` - Whether to overwrite the file if it already exists.
+    /// * `stats` - value to update the file stats to
     ///
     /// # Returns
     /// * `Result<(), String>` - Ok if successful, or an error message.
@@ -317,7 +320,7 @@ mod tests {
         let fs = PortableFs::with_cache(root.root.path().to_path_buf());
 
         let r = fs
-            .recurse_path(&Path::try_from(&StdPath::new("").to_owned()).unwrap())
+            .read_dir_recurse(&Path::try_from(&StdPath::new("").to_owned()).unwrap())
             .await
             .unwrap();
 
@@ -332,7 +335,7 @@ mod tests {
 
         // Browse the directory
         let portable_path = Path::try_from(&StdPath::new("").to_owned()).unwrap();
-        let directory = fs.browse_path(&portable_path).await.unwrap();
+        let directory = fs.read_dir(&portable_path).await.unwrap();
 
         // Assert the directory contains the file
         let mut entries: HashSet<String> = ["file1.txt", "file2.txt", "dir1", "dir3"]
@@ -566,7 +569,7 @@ mod tests {
         assert_eq!(fs.get_cache().stats(), &cstats);
 
         let _ = fs
-            .browse_path(&Path::try_from(&PathBuf::from("")).unwrap())
+            .read_dir(&Path::try_from(&PathBuf::from("")).unwrap())
             .await;
         check_len(&fs.get_cache(), 4);
         cstats.misses += 4;
@@ -574,7 +577,7 @@ mod tests {
 
         let old_len = fs.get_cache().len();
         let _ = fs
-            .recurse_path(&Path::try_from(&PathBuf::from("")).unwrap())
+            .read_dir_recurse(&Path::try_from(&PathBuf::from("")).unwrap())
             .await
             .unwrap();
         check_len(&fs.get_cache(), root.files.len() as u64);
