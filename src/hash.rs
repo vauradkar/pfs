@@ -1,5 +1,5 @@
 //! A helper modeule to build sha256 strings
-use std::path::Path;
+use std::path::Path as StdPath;
 
 use sha2::Digest;
 use sha2::Sha256;
@@ -47,7 +47,7 @@ impl Sha256String for Sha256 {
     }
 }
 
-impl Sha256Builder for &Path {
+impl Sha256Builder for &StdPath {
     async fn sha256_build(&self) -> Result<Sha256, Error> {
         let mut file = fs::File::open(&self).await.map_err(|e| Error::Read {
             what: self.to_string_lossy().to_string(),

@@ -14,16 +14,19 @@ unsafe_code = { level = "warn" }
 
 [dependencies]
 async-fs = { version = "2.2.0" }
+async-recursion = { version = "1.1.1" }
 async-walkdir = { version = "2.1.0", optional = true }
 chrono = { version = "0.4.41" }
 futures-lite = { version = "2.6.1", optional = true }
+log = { version = "0.4.27" }
+lru = { version = "0.16.2" }
 poem-openapi = { version = "5.1.16", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
-sha2 = "0.10.9"
+sha2 = { version = "0.10.9" }
 similar = { version = "2.7.0", optional = true }
 tempdir = { version = "0.3.7", optional = true }
-thiserror = "2.0.16"
-tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-thread"] }
+thiserror = { version = "2.0.16" }
+tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-thread", "sync"] }
 
 [dev-dependencies]
 pfs = { path = ".", features = ["test_utils"] }

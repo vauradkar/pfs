@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::fs::create_dir_all;
-use std::path::Path;
+use std::path::Path as StdPath;
 use std::path::PathBuf;
 
 use async_walkdir::WalkDir;
+use cross_check::get_recursive_files;
 use futures_lite::StreamExt;
 use similar::ChangeTag;
 use similar::TextDiff;
@@ -15,7 +16,6 @@ use crate::Error;
 use crate::FileInfo;
 use crate::FileNode;
 use crate::FileStat;
-use crate::test_utils::cross_check::get_recursive_files;
 
 // File paths and optional contents to create in the temporary test
 pub(crate) static TEMP_FILES: &[(&str, &str, bool)] = &[
@@ -51,13 +51,13 @@ impl TestRoot {
         let mut ret = Self {
             root,
             files: BTreeMap::new(),
-            save_path: save_path.map(|p| Path::new("/tmp/").join(p)),
+            save_path: save_path.map(|p| StdPath::new("/tmp/").join(p)),
         };
         for (relative_path, contents, is_dir) in TEMP_FILES {
             let dir = if *is_dir {
-                Path::new(relative_path)
+                StdPath::new(relative_path)
             } else {
-                Path::new(relative_path).parent().unwrap()
+                StdPath::new(relative_path).parent().unwrap()
             };
             create_dir_all(ret.root.path().join(dir)).map_err(|e| Error::Create {
                 what: format!("directory {}", dir.display()),
@@ -93,7 +93,7 @@ impl TestRoot {
             FileNode::new(stat, content.unwrap_or("").as_bytes().to_vec()),
         );
 
-        let mut parent = Path::new(relative_path);
+        let mut parent = StdPath::new(relative_path);
         while let Some(p) = parent.parent() {
             let dir_path = self.root.path().join(p);
             let dir_stat = FileStat::from_path(&dir_path).await.unwrap();
@@ -105,7 +105,7 @@ impl TestRoot {
         Ok(())
     }
 
-    async fn get_contents(&self, path: &Path, stats: &FileStat) -> Result<Vec<u8>, Error> {
+    async fn get_contents(&self, path: &StdPath, stats: &FileStat) -> Result<Vec<u8>, Error> {
         if stats.is_directory {
             Ok(vec![])
         } else {
@@ -116,7 +116,7 @@ impl TestRoot {
         }
     }
 
-    async fn get_insertable(&self, path: &Path) -> Result<(PathBuf, FileNode), Error> {
+    async fn get_insertable(&self, path: &StdPath) -> Result<(PathBuf, FileNode), Error> {
         let stats = FileStat::from_path(path).await?;
         let relative_path = path
             .strip_prefix(self.root.path())
@@ -210,7 +210,7 @@ impl TestRoot {
         }
     }
 
-    fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), Error> {
+    fn copy_dir_all(src: impl AsRef<StdPath>, dst: impl AsRef<StdPath>) -> Result<(), Error> {
         create_dir_all(&dst).unwrap();
         for entry in fs::read_dir(src).unwrap() {
             let entry = entry.unwrap();
@@ -226,7 +226,7 @@ impl TestRoot {
 
     /// Returns none if the two directories are identical, or a string
     /// containing a diff of their contents if they differ.
-    pub fn compare(&self, other_dir: &Path) -> Result<Option<String>, Error> {
+    pub fn compare(&self, other_dir: &StdPath) -> Result<Option<String>, Error> {
         let mut other_files = get_recursive_files(other_dir)?;
         other_files.sort();
         let mut self_files = get_recursive_files(self.root.path())?;
@@ -268,7 +268,7 @@ impl Drop for TestRoot {
 mod cross_check {
     use std::fs;
     use std::io::Read;
-    use std::path::Path;
+    use std::path::Path as StdPath;
     use std::time::SystemTime;
 
     use sha2::Digest;
@@ -276,15 +276,15 @@ mod cross_check {
 
     use crate::Error;
 
-    pub(super) fn get_recursive_files(dir_path: &Path) -> Result<Vec<String>, Error> {
+    pub(super) fn get_recursive_files(dir_path: &StdPath) -> Result<Vec<String>, Error> {
         let mut ret = vec![];
         visit_dirs(dir_path, dir_path, &mut ret)?;
         Ok(ret)
     }
 
     fn visit_dirs(
-        base_path: &Path,
-        current_path: &Path,
+        base_path: &StdPath,
+        current_path: &StdPath,
         out: &mut Vec<String>,
     ) -> Result<(), Error> {
         if current_path.is_dir() {
@@ -308,7 +308,7 @@ mod cross_check {
         Ok(())
     }
 
-    fn get_file_info(base_path: &Path, file_path: &Path) -> Result<String, Error> {
+    fn get_file_info(base_path: &StdPath, file_path: &StdPath) -> Result<String, Error> {
         let metadata = fs::metadata(file_path).map_err(|e| Error::Read {
             what: file_path.display().to_string(),
             how: e.to_string(),
@@ -347,7 +347,7 @@ mod cross_check {
         ))
     }
 
-    fn calculate_sha256(path: &Path) -> Result<String, Error> {
+    fn calculate_sha256(path: &StdPath) -> Result<String, Error> {
         let mut file = fs::File::open(path).map_err(|e| Error::Read {
             what: path.display().to_string(),
             how: e.to_string(),
