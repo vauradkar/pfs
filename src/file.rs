@@ -5,6 +5,8 @@ use std::time::SystemTime;
 use async_fs::DirEntry;
 #[cfg(feature = "poem")]
 use poem_openapi::Object;
+#[cfg(feature = "json_schema")]
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::fs;
@@ -17,6 +19,7 @@ use crate::utils::format_system_time;
 
 /// Represents the metadata of a file or directory, including its path, size,
 /// modification time, and type.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileStat {
@@ -61,7 +64,7 @@ impl FileStat {
     /// flag from the provided metadata and formats the modification time
     /// using `format_system_time`. The optional `sha256` can be set to `None`
     /// for directories or omitted values.
-    fn from_metadata(metadata: &Metadata, sha256: Option<String>) -> Self {
+    pub fn from_metadata(metadata: &Metadata, sha256: Option<String>) -> Self {
         let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
         FileStat {
             size: metadata.len(),
@@ -74,6 +77,7 @@ impl FileStat {
 
 /// Represents the contents of a directory, including the current path and its
 /// items.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileInfo {
@@ -85,6 +89,7 @@ pub struct FileInfo {
 
 /// Akin to inode, represents the a file or directory, including its path, size,
 /// modification time, type and contents.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileNode {

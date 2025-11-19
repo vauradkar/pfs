@@ -1,5 +1,9 @@
+use std::fs::DirEntry;
+
 #[cfg(feature = "poem")]
 use poem_openapi::Object;
+#[cfg(feature = "json_schema")]
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -10,6 +14,7 @@ use crate::Path;
 
 /// Represents a file or directory entry, including its name and associated
 /// metadata.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct DirectoryEntry {
@@ -34,8 +39,22 @@ impl TryFrom<&FileInfo> for DirectoryEntry {
     }
 }
 
+impl TryFrom<&DirEntry> for DirectoryEntry {
+    type Error = Error;
+    fn try_from(entry: &DirEntry) -> Result<Self, crate::Error> {
+        let metadata = std::fs::metadata(entry.path()).map_err(|e| Error::Read {
+            what: "metadata".into(),
+            how: e.to_string(),
+        })?;
+        Ok(Self {
+            name: entry.file_name().into_string().unwrap(),
+            stats: FileStat::from_metadata(&metadata, None),
+        })
+    }
+}
 /// Represents the contents of a directory, including the current path and its
 /// items.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct Directory {

@@ -16,6 +16,7 @@ use crate::Error;
 use crate::FileInfo;
 use crate::FileNode;
 use crate::FileStat;
+use crate::PortableFs;
 
 // File paths and optional contents to create in the temporary test
 pub(crate) static TEMP_FILES: &[(&str, &str, bool)] = &[
@@ -152,10 +153,10 @@ impl TestRoot {
     }
 
     /// Returns error if they are this directory and items are not synced.
-    pub async fn are_synced(&self, items: &[FileInfo]) -> Result<(), Error> {
+    pub async fn are_synced(&self, pfs: &PortableFs, items: &[FileInfo]) -> Result<(), Error> {
         let mut files: BTreeMap<PathBuf, FileNode> = BTreeMap::new();
         for item in items {
-            let item_path = PathBuf::from(&item.path);
+            let item_path = pfs.as_relative_path(&item.path);
             files.insert(
                 item_path.clone(),
                 (
@@ -200,8 +201,8 @@ impl TestRoot {
 
     /// Verify that all entries in `dir` match the files recorded in this
     /// TestRoot; panics if any entry's stats differ or are missing.
-    pub fn match_entries(&self, dir: &Directory) {
-        let dir_path = PathBuf::from(&dir.current_path);
+    pub fn match_entries(&self, pfs: &PortableFs, dir: &Directory) {
+        let dir_path = pfs.as_relative_path(&dir.current_path);
         for item in &dir.items {
             let path = dir_path.join(&item.name);
             println!("Matching entry: {}", path.display());

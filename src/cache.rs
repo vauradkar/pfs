@@ -3,12 +3,15 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 #[cfg(feature = "poem")]
 use poem_openapi::Object;
+#[cfg(feature = "json_schema")]
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::FileStat;
 use crate::Path;
 
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct CacheStats {
