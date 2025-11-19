@@ -307,13 +307,13 @@ mod tests {
     use std::collections::HashSet;
     use std::time::SystemTime;
 
-    use pfs::hash::Sha256Builder;
-    use pfs::hash::Sha256String;
     use tokio::sync::mpsc;
 
     use super::*;
     use crate::TestRoot;
     use crate::cache::CacheStats;
+    use crate::hash::Sha256Builder;
+    use crate::hash::Sha256String;
     use crate::utils::format_system_time;
 
     fn temp_files(root: &TestRoot) -> Vec<String> {
@@ -541,7 +541,7 @@ mod tests {
         assert!(!full_path.exists());
     }
 
-    fn check_len(cache: &Box<dyn Cache>, expected_len: u64) {
+    fn check_len(cache: &dyn Cache, expected_len: u64) {
         let len = cache.len();
         if len != expected_len {
             cache.dump_keys();
@@ -555,8 +555,8 @@ mod tests {
         let fs = PortableFs::with_cache(root.root.path().to_path_buf());
 
         let mut cstats = CacheStats::default();
-        check_len(&fs.get_cache(), 0);
-        check_len(&fs.get_cache(), 0);
+        check_len(fs.get_cache().as_ref(), 0);
+        check_len(fs.get_cache().as_ref(), 0);
         assert_eq!(fs.get_cache().stats(), &cstats);
 
         let fpath: &[&str] = &["test_file.txt"];
@@ -566,12 +566,12 @@ mod tests {
         assert_eq!(fs.get_cache().stats(), &cstats);
 
         assert_eq!(fs.get_cache().get(&portable_path).unwrap(), &stats);
-        check_len(&fs.get_cache(), 1);
+        check_len(fs.get_cache().as_ref(), 1);
         cstats.hits += 1;
         assert_eq!(fs.get_cache().stats(), &cstats);
 
         fs.delete_file(&portable_path).await.unwrap();
-        check_len(&fs.get_cache(), 0);
+        check_len(fs.get_cache().as_ref(), 0);
         assert_eq!(fs.get_cache().stats(), &cstats);
         assert_eq!(fs.get_cache().get(&portable_path), None);
         cstats.misses += 1;
@@ -580,7 +580,7 @@ mod tests {
         let _ = fs
             .read_dir(&Path::try_from(&PathBuf::from("")).unwrap())
             .await;
-        check_len(&fs.get_cache(), 4);
+        check_len(fs.get_cache().as_ref(), 4);
         cstats.misses += 4;
         assert_eq!(fs.get_cache().stats(), &cstats);
 
@@ -589,7 +589,7 @@ mod tests {
             .read_dir_recurse(&Path::try_from(&PathBuf::from("")).unwrap())
             .await
             .unwrap();
-        check_len(&fs.get_cache(), root.files.len() as u64);
+        check_len(fs.get_cache().as_ref(), root.files.len() as u64);
         cstats.hits += old_len;
         cstats.misses += root.files.len() as u64 - old_len;
         assert_eq!(fs.get_cache().stats(), &cstats);
