@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+use std::sync::RwLock;
 
 use log::debug;
 use log::error;
@@ -20,23 +21,42 @@ use crate::RecursiveDirList;
 use crate::cache::Cache;
 use crate::cache::FsCache;
 use crate::cache::NullCache;
+use crate::filter::FilterSet;
 use crate::native_fs::DirWalker;
 use crate::utils::parse_system_time;
 
 pub(crate) async fn lookup_or_load(
-    cache: Arc<Mutex<Box<dyn Cache>>>,
+    layer: Arc<FsLayer>,
     path: &StdPath,
     portable_path: &Path,
 ) -> Result<FileStat, Error> {
-    if let Some(stats) = cache.lock().unwrap().get(portable_path) {
+    if let Some(stats) = layer.cache.lock().unwrap().get(portable_path) {
         Ok(stats.clone())
     } else {
         let stats = FileStat::from_path(path).await?;
-        cache
+        layer
+            .cache
             .lock()
             .unwrap()
             .put(portable_path.clone(), stats.clone());
         Ok(stats)
+    }
+}
+
+/// Caching and filtering layers that sit above and below the `PortableFs`
+#[derive(Clone)]
+pub(crate) struct FsLayer {
+    cache: Arc<Mutex<Box<dyn Cache>>>,
+    pub filter_set: Arc<RwLock<FilterSet>>,
+}
+
+impl FsLayer {
+    /// Creates a new FsLayer from given `cache` and `filter_set`
+    pub fn new(cache: Box<dyn Cache>, filter_set: FilterSet) -> Self {
+        Self {
+            cache: Arc::new(Mutex::new(cache)),
+            filter_set: Arc::new(RwLock::new(filter_set)),
+        }
     }
 }
 
@@ -45,30 +65,33 @@ pub(crate) async fn lookup_or_load(
 pub struct PortableFs {
     // The relative path from the base directory.
     base_dir: PathBuf,
-
-    cache: Arc<Mutex<Box<dyn Cache>>>,
+    layer: Arc<FsLayer>,
 }
 
 impl PortableFs {
-    /// creates portable fs with cache
-    pub fn with_cache(path: PathBuf) -> Self {
+    fn with(base_dir: PathBuf, cache: Box<dyn Cache>) -> Self {
         PortableFs {
-            base_dir: path,
-            cache: Arc::new(Mutex::new(Box::new(FsCache::new(
-                NonZeroUsize::new(1000).unwrap(),
-            )))),
+            base_dir,
+            layer: Arc::new(FsLayer::new(cache, FilterSet::new())),
         }
     }
 
-    /// creates portable fs with out cache
-    pub fn without_cache(path: PathBuf) -> Self {
-        PortableFs {
-            base_dir: path,
-            cache: Arc::new(Mutex::new(Box::new(NullCache::new(
-                NonZeroUsize::new(1000).unwrap(),
-            )))),
-        }
+    /// creates portable fs with cache
+    pub fn with_cache(base_dir: PathBuf) -> Self {
+        Self::with(
+            base_dir,
+            Box::new(FsCache::new(NonZeroUsize::new(1000).unwrap())),
+        )
     }
+
+    /// creates portable fs with out cache
+    pub fn without_cache(base_dir: PathBuf) -> Self {
+        Self::with(
+            base_dir,
+            Box::new(NullCache::new(NonZeroUsize::new(1000).unwrap())),
+        )
+    }
+
     /// Converts a relative Path to an absolute PathBuf based on the
     /// base_dir.
     ///
@@ -107,7 +130,7 @@ impl PortableFs {
         for item in DirWalker::walk_dir(
             full_path,
             self.base_dir.clone(),
-            self.cache.clone(),
+            self.layer.clone(),
             20,
             Some(0),
         )
@@ -142,7 +165,7 @@ impl PortableFs {
         DirWalker::walk_dir(
             self.as_abs_path(path),
             self.base_dir.clone(),
-            self.cache.clone(),
+            self.layer.clone(),
             20,
             None,
         )
@@ -182,7 +205,7 @@ impl PortableFs {
         );
         let dir_walker = DirWalker::create(
             strip_prefix,
-            self.cache.clone(),
+            self.layer.clone(),
             chunk_size,
             None,
             tx,
@@ -298,7 +321,29 @@ impl PortableFs {
     }
 
     fn get_cache(&'_ self) -> MutexGuard<'_, Box<dyn Cache>> {
-        self.cache.lock().unwrap()
+        self.layer.cache.lock().unwrap()
+    }
+
+    /// Add new allow filter.
+    /// Deny list overrides allow list
+    pub fn allow_path<P: AsRef<StdPath>>(&mut self, path: P) {
+        self.layer.filter_set.write().unwrap().allow_path(path);
+    }
+
+    /// Add new deby filter.
+    /// Deny list overrides allow list
+    pub fn deny_path<P: AsRef<StdPath>>(&mut self, path: P) {
+        self.layer.filter_set.write().unwrap().deny_path(path);
+    }
+
+    /// Add an extension to allowed extention list
+    pub fn allow_extension(&mut self, ext: &str) {
+        self.layer.filter_set.write().unwrap().allow_extension(ext);
+    }
+
+    /// Add filename to allowed filename list
+    pub fn allow_filename(&mut self, name: &str) {
+        self.layer.filter_set.write().unwrap().allow_filename(name);
     }
 }
 

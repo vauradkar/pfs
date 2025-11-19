@@ -29,6 +29,8 @@ pub(crate) static TEMP_FILES: &[(&str, &str, bool)] = &[
     ("dir1/dir2/dir_empty1", "", true),
     ("dir3", "", true),
     ("dir3/file6.txt", "", false),
+    ("dir1/file7.md", "", false),
+    ("dir1/file8.rs", "", false),
 ];
 
 /// Utility structure for managing a temporary test directory and its files.

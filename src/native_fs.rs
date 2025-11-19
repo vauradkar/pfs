@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::Path as StdPath;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use async_recursion::async_recursion;
 use futures_lite::StreamExt;
@@ -13,12 +12,13 @@ use crate::Error;
 use crate::FileInfo;
 use crate::FileStat;
 use crate::Path;
-use crate::cache::Cache;
+use crate::filter::FilterLevel;
+use crate::portable_fs::FsLayer;
 use crate::portable_fs::lookup_or_load;
 
 pub(crate) struct DirWalker {
     strip_prefix: PathBuf,
-    cache: Arc<Mutex<Box<dyn Cache>>>,
+    layer: Arc<FsLayer>,
     chunk_size: usize,
     max_depth: Option<usize>,
     tx: Sender<Vec<FileInfo>>,
@@ -28,7 +28,7 @@ pub(crate) struct DirWalker {
 impl DirWalker {
     pub fn create<P: AsRef<StdPath>>(
         strip_prefix: P,
-        cache: Arc<Mutex<Box<dyn Cache>>>,
+        layer: Arc<FsLayer>,
         chunk_size: usize,
         max_depth: Option<usize>,
         tx: Sender<Vec<FileInfo>>,
@@ -36,7 +36,7 @@ impl DirWalker {
     ) -> Self {
         Self {
             strip_prefix: strip_prefix.as_ref().to_path_buf(),
-            cache,
+            layer,
             chunk_size,
             max_depth,
             tx,
@@ -47,7 +47,7 @@ impl DirWalker {
     pub async fn walk_dir<P: AsRef<StdPath>>(
         full_path: P,
         strip_prefix: P,
-        cache: Arc<Mutex<Box<dyn Cache>>>,
+        layer: Arc<FsLayer>,
         chunk_size: usize,
         max_depth: Option<usize>,
     ) -> Result<Vec<FileInfo>, Error> {
@@ -57,7 +57,7 @@ impl DirWalker {
         let x = tokio::spawn(async move {
             let dir_walker = DirWalker::create(
                 strip_prefix,
-                cache,
+                layer,
                 chunk_size,
                 max_depth,
                 tx,
@@ -142,22 +142,34 @@ impl DirWalker {
                 })?
                 .to_owned();
             let portable_path = Path::try_from(&relative_path)?;
-            let stats = lookup_or_load(self.cache.clone(), &entry_path, &portable_path).await?;
+            let stats = lookup_or_load(self.layer.clone(), &entry_path, &portable_path).await?;
             let is_dir = stats.is_directory;
-            let skip_push = self
-                .lookup
-                .get(&relative_path)
-                .map(|s| s == &stats)
-                .unwrap_or(false);
-            if !skip_push {
-                self.push_and_send(
-                    chunks,
-                    FileInfo {
-                        path: portable_path,
-                        stats,
-                    },
-                )
-                .await?;
+            let filter_level = self
+                .layer
+                .filter_set
+                .read()
+                .unwrap()
+                .matches(&relative_path, is_dir)
+                .unwrap();
+            if filter_level == FilterLevel::Deny {
+                continue;
+            } else if filter_level == FilterLevel::Allow {
+                let skip_push = self
+                    .lookup
+                    .get(&relative_path)
+                    .map(|s| s == &stats)
+                    .unwrap_or(false);
+                if !skip_push {
+                    println!("pushing:{:?}", entry_path);
+                    self.push_and_send(
+                        chunks,
+                        FileInfo {
+                            path: portable_path,
+                            stats,
+                        },
+                    )
+                    .await?;
+                }
             }
 
             if !is_dir {
@@ -174,5 +186,128 @@ impl DirWalker {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::num::NonZero;
+
+    use super::*;
+    use crate::TestRoot;
+    use crate::cache::NullCache;
+    use crate::filter::FilterSet;
+    async fn setup_test(fset: FilterSet) -> (TestRoot, Vec<FileInfo>) {
+        let root = TestRoot::new(std::thread::current().name()).await.unwrap();
+        let full_path = root.root.path();
+        let strip_prefix = full_path;
+        let layer = Arc::new(FsLayer::new(
+            Box::new(NullCache::new(NonZero::new(100).unwrap())),
+            fset,
+        ));
+
+        let flist = DirWalker::walk_dir(full_path, strip_prefix, layer, 2, None)
+            .await
+            .unwrap();
+        (root, flist)
+    }
+
+    #[tokio::test]
+    async fn test_selective_allow() {
+        let mut fset = FilterSet::new();
+        fset.allow_path("dir1");
+        let (_root, flist) = setup_test(fset).await;
+
+        for info in flist {
+            assert!(
+                info.path.to_string().starts_with("dir1"),
+                "for {}",
+                info.path
+            );
+        }
+    }
+
+    fn check_expected(found: &[FileInfo], expected: &[&str]) {
+        let mut expected: HashSet<String> = expected.iter().map(|s| s.to_string()).collect();
+
+        for info in found {
+            assert!(expected.remove(&info.path.to_string()), "for {}", info.path);
+        }
+        assert!(expected.is_empty(), "{:?}", expected);
+    }
+
+    #[tokio::test]
+    async fn test_selective_deny() {
+        let mut fset = FilterSet::new();
+        fset.allow_path("dir1");
+        fset.allow_extension("txt");
+        let (_root, flist) = setup_test(fset).await;
+
+        for info in flist {
+            assert!(
+                info.path.to_string().starts_with("dir1"),
+                "for {}",
+                info.path
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_allow_ext() {
+        let mut fset = FilterSet::new();
+        fset.allow_extension("txt");
+        fset.allow_extension("rs");
+        let (_root, flist) = setup_test(fset).await;
+
+        let expected = [
+            "file1.txt",
+            "file2.txt",
+            "dir1/file3.txt",
+            "dir1/dir2/file4.txt",
+            "dir3/file6.txt",
+            "dir1/file8.rs",
+        ];
+        check_expected(&flist, &expected);
+    }
+
+    #[tokio::test]
+    async fn test_selective_deny_with_ext() {
+        let mut fset = FilterSet::new();
+        fset.allow_extension("txt");
+        fset.deny_path("dir3");
+        let (_root, flist) = setup_test(fset).await;
+
+        let expected = [
+            "file1.txt",
+            "file2.txt",
+            "dir1/file3.txt",
+            "dir1/dir2/file4.txt",
+        ];
+        check_expected(&flist, &expected);
+    }
+
+    #[tokio::test]
+    async fn test_allow_and_deny() {
+        let mut fset = FilterSet::new();
+        fset.allow_path("dir1");
+        fset.deny_path("dir1/dir2");
+
+        let (_root, flist) = setup_test(fset).await;
+
+        let expected = ["dir1/file3.txt", "dir1", "dir1/file7.md", "dir1/file8.rs"];
+        check_expected(&flist, &expected);
+    }
+
+    #[tokio::test]
+    async fn test_allow_denied() {
+        let mut fset = FilterSet::new();
+        fset.allow_path("dir1/dir2");
+        fset.deny_path("dir1");
+
+        let (_root, flist) = setup_test(fset).await;
+
+        let expected = [];
+        check_expected(&flist, &expected);
     }
 }

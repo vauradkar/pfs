@@ -5,6 +5,7 @@ mod dir;
 mod dir_list;
 mod errors;
 mod file;
+mod filter;
 pub mod hash;
 mod native_fs;
 mod path;
