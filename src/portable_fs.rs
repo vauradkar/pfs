@@ -41,6 +41,7 @@ pub(crate) async fn lookup_or_load(
 }
 
 /// Represents a filesystem rooted at a relative base directory.
+#[derive(Clone)]
 pub struct PortableFs {
     // The relative path from the base directory.
     base_dir: PathBuf,
@@ -77,10 +78,18 @@ impl PortableFs {
     /// # Returns
     /// * `PathBuf` - The absolute path corresponding to the relative path.
     pub fn as_abs_path(&self, relative: &Path) -> PathBuf {
-        let mut full_path = self.base_dir.clone();
-        let rel: PathBuf = relative.into();
-        full_path.push(rel);
-        full_path
+        relative.append_to(&self.base_dir)
+    }
+
+    /// Converts a relative Path to a PathBuf relative to the root (empty base).
+    ///
+    /// # Arguments
+    /// * `relative` - The relative Path to convert.
+    ///
+    /// # Returns
+    /// * `PathBuf` - The path corresponding to the relative path from the root.
+    pub fn as_relative_path(&self, relative: &Path) -> PathBuf {
+        relative.append_to(StdPath::new(""))
     }
 
     /// Read the contents of the given directory path and returns its
@@ -163,7 +172,7 @@ impl PortableFs {
         let mut lookup: HashMap<PathBuf, FileStat> = HashMap::new();
         for item in delta.deltas {
             let stats = item.stats;
-            lookup.insert((&item.path).into(), stats);
+            lookup.insert(self.as_relative_path(&item.path), stats);
         }
         debug!(
             "exchange_deltas base_dir: {} full_path:{} dest:{}",
@@ -325,7 +334,7 @@ mod tests {
             .unwrap();
 
         println!("r: {r:#?}");
-        root.are_synced(&r).await.unwrap();
+        root.are_synced(&fs, &r).await.unwrap();
     }
 
     #[tokio::test]
@@ -348,7 +357,7 @@ mod tests {
             assert!(entries.remove(&entry.name));
         }
         assert!(entries.is_empty());
-        root.match_entries(&directory);
+        root.match_entries(&fs, &directory);
     }
 
     async fn get_deltas(

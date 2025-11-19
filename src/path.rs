@@ -1,8 +1,11 @@
 use std::fmt::Display;
+use std::path::Path as StdPath;
 use std::path::PathBuf;
 
 #[cfg(feature = "poem")]
 use poem_openapi::Object;
+#[cfg(feature = "json_schema")]
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -30,6 +33,8 @@ where
 }
 
 /// Represents a filesystem path as a vector of its portable components.
+/// `Path` in itself is useless. It is a base/root path to be useful.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct Path {
@@ -42,16 +47,38 @@ impl Display for Path {
     /// Format the portable `Path` for display by converting it into a
     /// platform `PathBuf` and delegating to its display implementation.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let path: PathBuf = self.into();
-        write!(f, "{}", path.display())
+        for i in 0..self.components.len().saturating_sub(1) {
+            write!(f, "{}{}", self.components[i], std::path::MAIN_SEPARATOR_STR)?;
+        }
+        if !self.components.is_empty() {
+            write!(f, "{}", self.components.last().unwrap())?;
+        }
+        Ok(())
     }
 }
 
 impl Path {
+    /// Creates empty path
+    pub fn empty() -> Self {
+        Self { components: vec![] }
+    }
+
     /// Returns the last component of the portable path, typically the file or
     /// directory name.
     pub fn basename(&self) -> Option<&str> {
         self.components.last().map(|s| s.as_str())
+    }
+
+    /// Convert the portable `Path` into a platform `PathBuf`.
+    ///
+    /// Components that are `.` or `..` are ignored to produce a clean
+    /// `PathBuf` suitable for filesystem operations.
+    pub fn append_to(&self, base_dir: &StdPath) -> PathBuf {
+        let mut ret = base_dir.to_owned();
+        for comp in &self.components {
+            ret.push(comp);
+        }
+        ret
     }
 
     /// Retrieve the `FileStat` for this portable path.
@@ -59,8 +86,9 @@ impl Path {
     /// This will convert the portable path into a `PathBuf` and check for the
     /// file's existence. If the path exists the file metadata is returned as
     /// a `FileStat`, otherwise an `Error::InvalidPath` is returned.
-    async fn get_file_stat(&self) -> Result<FileStat, Error> {
-        let path: PathBuf = self.into();
+    async fn get_file_stat(&self, base_dir: &StdPath) -> Result<FileStat, Error> {
+        let path: PathBuf = base_dir.into();
+        self.append_to(&path);
         if path.exists() {
             Ok(FileStat::from_path(path.as_path()).await?)
         } else {
@@ -69,15 +97,16 @@ impl Path {
             })
         }
     }
+
     /// Looks up the metadata for the current portable path.
     ///
     /// # Returns
     /// * `Result<Lookup, Error>` - The lookup result containing the path and
     ///   its metadata, or an error message.
-    pub async fn lookup(&self) -> Result<FileInfo, Error> {
+    pub async fn lookup(&self, base_dir: &StdPath) -> Result<FileInfo, Error> {
         Ok(FileInfo {
             path: self.clone(),
-            stats: self.get_file_stat().await?,
+            stats: self.get_file_stat(base_dir).await?,
         })
     }
 
@@ -117,6 +146,11 @@ impl Path {
             ret.push(comp);
         }
         ret
+    }
+
+    /// Verifies if the file exists
+    pub fn is_valid(&self, base_dir: &StdPath) -> bool {
+        self.append_to(base_dir).exists()
     }
 }
 
@@ -159,6 +193,18 @@ impl TryFrom<&PathBuf> for Path {
     /// This will reject paths that are just `.` or `..` and will strip root
     /// components. Non-UTF8 components will be skipped.
     fn try_from(path: &PathBuf) -> Result<Self, Self::Error> {
+        Self::try_from(path.as_path())
+    }
+}
+
+impl TryFrom<&StdPath> for Path {
+    type Error = Error;
+
+    /// Convert a `PathBuf` into the portable `Path` representation.
+    ///
+    /// This will reject paths that are just `.` or `..` and will strip root
+    /// components. Non-UTF8 components will be skipped.
+    fn try_from(path: &StdPath) -> Result<Self, Self::Error> {
         let str = path.to_string_lossy();
         if str == "." || str == ".." {
             return Err(Error::InvalidArgument(
@@ -180,18 +226,35 @@ impl TryFrom<&PathBuf> for Path {
     }
 }
 
-impl From<&Path> for PathBuf {
-    /// Convert the portable `Path` into a platform `PathBuf`.
-    ///
-    /// Components that are `.` or `..` are ignored to produce a clean
-    /// `PathBuf` suitable for filesystem operations.
-    fn from(portable: &Path) -> Self {
-        let mut path = PathBuf::new();
-        for comp in &portable.components {
-            if comp != "." && comp != ".." && comp != "/" {
-                path.push(comp);
-            }
-        }
-        path
+#[cfg(test)]
+mod tests {
+    use crate::Path;
+
+    #[test]
+    fn root_path_display() {
+        assert_eq!(Path::try_from(["a"].as_slice()).unwrap().to_string(), "a");
+    }
+
+    #[test]
+    fn empty_path_display() {
+        assert_eq!(Path::empty().to_string(), "");
+    }
+
+    #[test]
+    fn two_components_path_display() {
+        assert_eq!(
+            Path::try_from(["a", "b"].as_slice()).unwrap().to_string(),
+            "a/b"
+        );
+    }
+
+    #[test]
+    fn three_components_path_display() {
+        assert_eq!(
+            Path::try_from(["a", "b", "c"].as_slice())
+                .unwrap()
+                .to_string(),
+            "a/b/c"
+        );
     }
 }

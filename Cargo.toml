@@ -12,6 +12,7 @@ rust-version = "1.91.1"
 version = "0.2.0"
 
 [features]
+json_schema = ["schemars"]
 poem = ["poem-openapi"]
 test_utils = ["async-walkdir", "similar", "tempdir"]
 
@@ -29,6 +30,7 @@ futures-lite = { version = "2.6.1" }
 log = { version = "0.4.27" }
 lru = { version = "0.16.2" }
 poem-openapi = { version = "5.1.16", optional = true }
+schemars = { version = "0.9.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 sha2 = { version = "0.10.9" }
 similar = { version = "2.7.0", optional = true }

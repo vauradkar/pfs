@@ -1,8 +1,11 @@
+#[cfg(feature = "json_schema")]
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
 /// Represents all possible errors in the shlib crate.
+#[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[derive(Error, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub enum Error {
     /// Error indicating a failure to read data.
