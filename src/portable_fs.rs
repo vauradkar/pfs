@@ -639,4 +639,16 @@ mod tests {
         cstats.misses += root.files.len() as u64 - old_len;
         assert_eq!(fs.get_cache().stats(), &cstats);
     }
+
+    #[tokio::test]
+    async fn test_filtering() {
+        let mut pfs = PortableFs::without_cache("./".into());
+        pfs.allow_extension("toml");
+        let dir = pfs.read_dir(&Path::empty()).await.unwrap();
+        let toml_files = ["Cargo.toml", "rustfmt.toml"];
+        for entry in &dir.items {
+            assert!(toml_files.contains(&entry.name.as_str()));
+        }
+        assert_eq!(dir.items.len(), toml_files.len());
+    }
 }

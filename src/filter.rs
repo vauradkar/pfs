@@ -131,11 +131,14 @@ impl FilterSet {
 
         // File-specific checks (Extension and Filename)
         // Only apply these checks if the path doesn't look like a directory
-        if !self.allowed_extensions.is_empty()
-            && let Some(ext) = path.extension()
-            && !self.check_extension(ext)
-        {
-            return Ok(FilterLevel::Deny);
+        if !self.allowed_extensions.is_empty() {
+            if let Some(ext) = path.extension() {
+                if !self.check_extension(ext) {
+                    return Ok(FilterLevel::Deny);
+                }
+            } else {
+                return Ok(FilterLevel::Deny);
+            }
         }
 
         // Check Filename specifically (if configured)

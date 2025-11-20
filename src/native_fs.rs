@@ -160,7 +160,6 @@ impl DirWalker {
                     .map(|s| s == &stats)
                     .unwrap_or(false);
                 if !skip_push {
-                    println!("pushing:{:?}", entry_path);
                     self.push_and_send(
                         chunks,
                         FileInfo {
