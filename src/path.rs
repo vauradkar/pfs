@@ -11,8 +11,10 @@ use serde::Deserializer;
 use serde::Serialize;
 use serde::de;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::FileStat;
 use crate::errors::Error;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::file::FileInfo;
 
 /// A custom deserializer function for a Vec<String> that checks for ".."
@@ -86,6 +88,7 @@ impl Path {
     /// This will convert the portable path into a `PathBuf` and check for the
     /// file's existence. If the path exists the file metadata is returned as
     /// a `FileStat`, otherwise an `Error::InvalidPath` is returned.
+    #[cfg(not(target_arch = "wasm32"))]
     async fn get_file_stat(&self, base_dir: &StdPath) -> Result<FileStat, Error> {
         let path: PathBuf = base_dir.into();
         self.append_to(&path);
@@ -103,6 +106,7 @@ impl Path {
     /// # Returns
     /// * `Result<Lookup, Error>` - The lookup result containing the path and
     ///   its metadata, or an error message.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn lookup(&self, base_dir: &StdPath) -> Result<FileInfo, Error> {
         Ok(FileInfo {
             path: self.clone(),

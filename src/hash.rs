@@ -1,9 +1,10 @@
 //! A helper modeule to build sha256 strings
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path as StdPath;
 
 use sha2::Digest;
 use sha2::Sha256;
-use tokio::fs;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::AsyncReadExt;
 
 use crate::errors::Error;
@@ -47,12 +48,15 @@ impl Sha256String for Sha256 {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Sha256Builder for &StdPath {
     async fn sha256_build(&self) -> Result<Sha256, Error> {
-        let mut file = fs::File::open(&self).await.map_err(|e| Error::Read {
-            what: self.to_string_lossy().to_string(),
-            how: e.to_string(),
-        })?;
+        let mut file = tokio::fs::File::open(&self)
+            .await
+            .map_err(|e| Error::Read {
+                what: self.to_string_lossy().to_string(),
+                how: e.to_string(),
+            })?;
         let mut context = Sha256::new();
         let mut buffer = vec![0; 4096]; // Read in chunks
 

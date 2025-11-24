@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+#[cfg(not(target_arch = "wasm32"))]
 use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;
@@ -9,12 +10,13 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::Error;
 
-/// A struct to configure and enforce path filtering rules.
+/// Enumertates the type of operations allowed/denied on a path
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, Derivative, PartialEq, Eq)]
-/// Enumertates the type of operations allowed/denied on a path
+#[cfg(not(target_arch = "wasm32"))]
 pub enum FilterLevel {
     /// Deny traversing and returning path
     Deny,
@@ -101,6 +103,7 @@ impl FilterSet {
     /// Determines if a path matches the filter criteria.
     ///
     /// Returns `true` if the path passes all checks.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn matches<P: AsRef<Path>>(&self, path: P, is_dir: bool) -> Result<FilterLevel, Error> {
         let path = path.as_ref();
 
@@ -149,6 +152,7 @@ impl FilterSet {
         Ok(FilterLevel::Allow)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn check_extension(&self, ext: &OsStr) -> bool {
         if let Some(ext_str) = ext.to_str() {
             return self.allowed_extensions.contains(&ext_str.to_lowercase());
@@ -156,6 +160,7 @@ impl FilterSet {
         false
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn check_filename(&self, path: &Path) -> bool {
         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
             return self.allowed_filenames.contains(name);
@@ -164,7 +169,7 @@ impl FilterSet {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod tests {
     use std::path::Path as StdPath;
 

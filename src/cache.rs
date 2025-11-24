@@ -1,6 +1,5 @@
 use std::num::NonZeroUsize;
 
-use lru::LruCache;
 #[cfg(feature = "poem")]
 use poem_openapi::Object;
 #[cfg(feature = "json_schema")]
@@ -19,6 +18,7 @@ pub struct CacheStats {
     pub misses: u64,
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) trait Cache: Send {
     fn get(&mut self, key: &Path) -> Option<&FileStat>;
 
@@ -72,56 +72,6 @@ impl Cache for NullCache {
 
     #[cfg(test)]
     fn dump_keys(&self) -> String {
-        "".to_owned()
-    }
-}
-
-pub(crate) struct FsCache {
-    lru: LruCache<Path, FileStat>,
-    stats: CacheStats,
-}
-
-impl FsCache {
-    pub(crate) fn new(capacity: NonZeroUsize) -> Self {
-        FsCache {
-            lru: LruCache::new(capacity),
-            stats: CacheStats::default(),
-        }
-    }
-}
-
-impl Cache for FsCache {
-    fn get(&mut self, key: &Path) -> Option<&FileStat> {
-        let ret = self.lru.get(key);
-        if ret.is_some() {
-            self.stats.hits += 1;
-        } else {
-            self.stats.misses += 1;
-        }
-        ret
-    }
-
-    fn put(&mut self, key: Path, value: FileStat) {
-        self.lru.put(key, value);
-    }
-
-    #[cfg(test)]
-    fn stats(&self) -> &CacheStats {
-        &self.stats
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> u64 {
-        self.lru.len() as u64
-    }
-
-    fn pop(&mut self, key: &Path) -> Option<FileStat> {
-        self.lru.pop(key)
-    }
-
-    #[cfg(test)]
-    fn dump_keys(&self) -> String {
-        self.lru.iter().for_each(|(k, _v)| println!("\"{}\"", k));
         "".to_owned()
     }
 }

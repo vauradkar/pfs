@@ -55,7 +55,8 @@ mod errors;
 mod file;
 mod filter;
 pub mod hash;
-mod native_fs;
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
 mod path;
 mod portable_fs;
 pub mod utils;
@@ -67,10 +68,7 @@ pub use errors::Error;
 pub use file::FileInfo;
 pub use file::FileNode;
 pub use file::FileStat;
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::*;
 pub use path::Path;
 pub use portable_fs::PortableFs;
-
-#[cfg(feature = "test_utils")]
-pub(crate) mod test_utils;
-#[cfg(feature = "test_utils")]
-pub use test_utils::TestRoot;

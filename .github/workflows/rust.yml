@@ -18,6 +18,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
             toolchain: stable
+            target: wasm32-unknown-unknown
             components: rustfmt, clippy
             
       - uses: actions/checkout@v4
@@ -55,6 +56,13 @@ jobs:
         with:
           command: doc
           args: --lib --no-deps --all-features
+
+      - name: Clippy wasm32 all-features
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --all-features --workspace  --target=wasm32-unknown-unknown -- -D warnings
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

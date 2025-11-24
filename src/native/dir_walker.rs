@@ -8,13 +8,13 @@ use futures_lite::StreamExt;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
+use super::portable_fs::lookup_or_load;
 use crate::Error;
 use crate::FileInfo;
 use crate::FileStat;
 use crate::Path;
 use crate::filter::FilterLevel;
 use crate::portable_fs::FsLayer;
-use crate::portable_fs::lookup_or_load;
 
 pub(crate) struct DirWalker {
     strip_prefix: PathBuf,
