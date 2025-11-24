@@ -68,7 +68,7 @@ pub use errors::Error;
 pub use file::FileInfo;
 pub use file::FileNode;
 pub use file::FileStat;
-#[cfg(not(target_arch = "wasm32"))]
-pub use native::*;
+#[cfg(all(not(target_arch = "wasm32"), feature = "test_utils"))]
+pub use native::TestRoot;
 pub use path::Path;
 pub use portable_fs::PortableFs;
