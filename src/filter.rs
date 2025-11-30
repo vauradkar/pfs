@@ -15,6 +15,7 @@ use crate::Error;
 
 /// Enumertates the type of operations allowed/denied on a path
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, Derivative, PartialEq, Eq)]
 #[cfg(not(target_arch = "wasm32"))]
 pub enum FilterLevel {
@@ -31,14 +32,17 @@ pub enum FilterLevel {
 
 /// A struct to configure and enforce path filtering rules.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, Derivative, PartialEq, Eq, Default)]
 pub struct FilterSet {
     /// Paths that are explicitly allowed.
     /// If empty, all paths are allowed unless denied.
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<String>))]
     allowed_roots: Vec<PathBuf>,
 
     /// Paths that are explicitly denied (blacklist mode).
     /// These override allowed_roots.
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<String>))]
     denied_roots: Vec<PathBuf>,
 
     /// Allowed file extensions (e.g., "jpg", "png").

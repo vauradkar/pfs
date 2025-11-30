@@ -15,6 +15,7 @@ use crate::utils::format_system_time;
 /// modification time, and type.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileStat {
     /// The size of the file in bytes. For directories, this may be zero or
@@ -52,6 +53,7 @@ impl FileStat {
 /// items.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileInfo {
     /// The full path of the file.
@@ -64,6 +66,7 @@ pub struct FileInfo {
 /// modification time, type and contents.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct FileNode {
     /// The metadata of the file or directory.

@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Represents all possible errors in the shlib crate.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Error, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub enum Error {
     /// Error indicating a failure to read data.

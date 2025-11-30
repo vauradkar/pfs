@@ -38,6 +38,7 @@ where
 /// `Path` in itself is useless. It is a base/root path to be useful.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct Path {
     /// The components of the portable path as a vector of strings.

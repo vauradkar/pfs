@@ -16,6 +16,7 @@ use crate::Path;
 /// metadata.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct DirectoryEntry {
     /// Name of the file or directory.
@@ -56,6 +57,7 @@ impl TryFrom<&DirEntry> for DirectoryEntry {
 /// items.
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct Directory {
     /// The current directory path.

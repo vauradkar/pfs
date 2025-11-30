@@ -12,6 +12,7 @@ use crate::Path;
 
 #[cfg_attr(feature = "json_schema", derive(JsonSchema))]
 #[cfg_attr(feature = "poem", derive(Object))]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct CacheStats {
     pub hits: u64,
