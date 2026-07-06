@@ -24,10 +24,35 @@ impl FileStat {
             how: e.to_string(),
         })?;
         if metadata.is_dir() {
-            Ok(FileStat::from_metadata(&metadata, Some("".to_string())))
+            Ok(FileStat::from_metadata(&metadata, None))
         } else {
             let sha256 = path.sha256_build().await?.sha256_string().await?;
             Ok(FileStat::from_metadata(&metadata, Some(sha256)))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempdir::TempDir;
+
+    #[tokio::test]
+    async fn from_path_computes_sha256_by_default() {
+        let temp_dir = TempDir::new("pfs-file-stat").unwrap();
+        let file_path = temp_dir.path().join("sample.bin");
+        std::fs::write(&file_path, b"hello world").unwrap();
+
+        let stat = FileStat::from_path(&file_path).await.unwrap();
+        let expected = file_path
+            .as_path()
+            .sha256_build()
+            .await
+            .unwrap()
+            .sha256_string()
+            .await
+            .unwrap();
+
+        assert_eq!(stat.sha256.as_deref(), Some(expected.as_str()));
     }
 }

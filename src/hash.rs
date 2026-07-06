@@ -1,11 +1,10 @@
 //! A helper modeule to build sha256 strings
 #[cfg(not(target_arch = "wasm32"))]
+use std::io::Read;
 use std::path::Path as StdPath;
 
 use sha2::Digest;
 use sha2::Sha256;
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::io::AsyncReadExt;
 
 use crate::errors::Error;
 
@@ -51,27 +50,33 @@ impl Sha256String for Sha256 {
 #[cfg(not(target_arch = "wasm32"))]
 impl Sha256Builder for &StdPath {
     async fn sha256_build(&self) -> Result<Sha256, Error> {
-        let mut file = tokio::fs::File::open(&self)
-            .await
-            .map_err(|e| Error::Read {
-                what: self.to_string_lossy().to_string(),
+        let path = self.to_path_buf();
+        tokio::task::spawn_blocking(move || -> Result<Sha256, Error> {
+            let mut file = std::fs::File::open(&path).map_err(|e| Error::Read {
+                what: path.to_string_lossy().to_string(),
                 how: e.to_string(),
             })?;
-        let mut context = Sha256::new();
-        let mut buffer = vec![0; 4096]; // Read in chunks
+            let mut context = Sha256::new();
+            let mut buffer = [0_u8; 1024 * 1024];
 
-        loop {
-            let bytes_read = file.read(&mut buffer).await.map_err(|e| Error::Read {
-                what: self.to_string_lossy().to_string(),
-                how: e.to_string(),
-            })?;
+            loop {
+                let bytes_read = file.read(&mut buffer).map_err(|e| Error::Read {
+                    what: path.to_string_lossy().to_string(),
+                    how: e.to_string(),
+                })?;
 
-            if bytes_read == 0 {
-                break; // End of file
+                if bytes_read == 0 {
+                    break;
+                }
+                context.update(&buffer[..bytes_read]);
             }
-            context.update(&buffer[..bytes_read]);
-        }
-        Ok(context)
+            Ok(context)
+        })
+        .await
+        .map_err(|e| Error::Read {
+            what: self.to_string_lossy().to_string(),
+            how: e.to_string(),
+        })?
     }
 }
 
