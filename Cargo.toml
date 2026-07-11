@@ -27,6 +27,7 @@ async-recursion = { version = "1.1.1" }
 async-walkdir = { version = "2.1.0", optional = true }
 chrono = { version = "0.4.41" }
 derivative = "2.2.0"
+fastrand = "2.4.1"
 futures-lite = { version = "2.6.1" }
 log = { version = "0.4.27" }
 lru = { version = "0.16.2" }
@@ -46,6 +47,13 @@ tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-t
 tokio = { version = "1.47.1", features = ["macros"] }
 
 [dev-dependencies]
+criterion = "0.4"
 pfs = { path = ".", features = ["test_utils"] }
 serde_json = { version = "1.0.145" }
+tempfile = "3.6"
 tokio-test = "0.4.4"
+
+[[bench]]
+harness = false
+name = "portable_fs_bench"
+path = "benches/portable_fs_bench.rs"
