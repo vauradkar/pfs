@@ -136,7 +136,7 @@ impl PortableFs {
             self.layer.clone(),
             chunk_size,
             None,
-            tx,
+            Some(tx),
             lookup,
         );
         if let Err(e) = dir_walker.walk_dir_stream(&full_path).await {

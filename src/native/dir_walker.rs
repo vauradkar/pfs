@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use async_recursion::async_recursion;
 use futures_lite::StreamExt;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
 use super::portable_fs::lookup_or_load;
@@ -21,7 +20,7 @@ pub(crate) struct DirWalker {
     layer: Arc<FsLayer>,
     chunk_size: usize,
     max_depth: Option<usize>,
-    tx: Sender<Vec<FileInfo>>,
+    tx: Option<Sender<Vec<FileInfo>>>,
     lookup: HashMap<PathBuf, FileStat>,
 }
 
@@ -31,7 +30,7 @@ impl DirWalker {
         layer: Arc<FsLayer>,
         chunk_size: usize,
         max_depth: Option<usize>,
-        tx: Sender<Vec<FileInfo>>,
+        tx: Option<Sender<Vec<FileInfo>>>,
         lookup: HashMap<PathBuf, FileStat>,
     ) -> Self {
         Self {
@@ -53,56 +52,56 @@ impl DirWalker {
     ) -> Result<Vec<FileInfo>, Error> {
         let full_path = full_path.as_ref().to_path_buf();
         let strip_prefix = strip_prefix.as_ref().to_path_buf();
-        let (tx, mut rx) = mpsc::channel(100);
-        let x = tokio::spawn(async move {
-            let dir_walker = DirWalker::create(
-                strip_prefix,
-                layer,
-                chunk_size,
-                max_depth,
-                tx,
-                HashMap::new(),
-            );
-            dir_walker.walk_dir_stream(&full_path).await
-        });
-        let mut items = Vec::new();
-        while let Some(mut item) = rx.recv().await {
-            items.append(&mut item);
-        }
-        x.await.map_err(|e| Error::Read {
-            what: "failed to join walk_dir thread".to_owned(),
-            how: e.to_string(),
-        })??;
+        let mut items = Vec::with_capacity(chunk_size);
+        let dir_walker = DirWalker::create(
+            strip_prefix,
+            layer,
+            chunk_size,
+            max_depth,
+            None,
+            HashMap::new(),
+        );
+        dir_walker
+            .walk_recursive(&full_path, 0, &mut items)
+            .await?;
         Ok(items)
     }
 
     async fn write_chunks(&self, chunks: &mut Vec<FileInfo>) -> Result<(), Error> {
-        self.tx
-            .send(std::mem::take(chunks))
-            .await
-            .map_err(|e| Error::Sync {
-                what: "failed to tx".to_owned(),
-                how: e.to_string(),
-            })?;
-        if chunks.capacity() < self.chunk_size {
-            chunks.reserve(self.chunk_size - chunks.capacity());
+        if let Some(tx) = &self.tx {
+            tx.send(std::mem::take(chunks))
+                .await
+                .map_err(|e| Error::Sync {
+                    what: "failed to tx".to_owned(),
+                    how: e.to_string(),
+                })?;
+            if chunks.capacity() < self.chunk_size {
+                chunks.reserve(self.chunk_size - chunks.capacity());
+            }
         }
         Ok(())
     }
 
     async fn push_and_send(&self, chunks: &mut Vec<FileInfo>, item: FileInfo) -> Result<(), Error> {
-        chunks.push(item);
-        if chunks.len() == self.chunk_size {
-            self.write_chunks(chunks).await?;
+        if self.tx.is_some() {
+            chunks.push(item);
+            if chunks.len() == self.chunk_size {
+                self.write_chunks(chunks).await?;
+            }
+        } else {
+            chunks.push(item);
         }
         Ok(())
     }
 
     /// Walk a directory tree up to a specified depth
     pub async fn walk_dir_stream<P: AsRef<StdPath>>(&self, full_path: &P) -> Result<(), Error> {
-        let mut chunks = Vec::with_capacity(self.chunk_size);
-        self.walk_recursive(full_path.as_ref(), 0, &mut chunks)
+        let mut items = Vec::with_capacity(self.chunk_size);
+        self.walk_recursive(full_path.as_ref(), 0, &mut items)
             .await?;
+        if !items.is_empty() {
+            self.write_chunks(&mut items).await?;
+        }
         Ok(())
     }
 
