@@ -36,6 +36,10 @@ impl Cache for FsCache {
         self.lru.put(key, value);
     }
 
+    fn contains_key(&self, key: &Path) -> bool {
+        self.lru.contains(key)
+    }
+
     #[cfg(test)]
     fn stats(&self) -> &CacheStats {
         &self.stats

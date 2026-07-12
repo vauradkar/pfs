@@ -78,6 +78,10 @@ impl Path {
     /// `PathBuf` suitable for filesystem operations.
     pub fn append_to(&self, base_dir: &StdPath) -> PathBuf {
         let mut ret = base_dir.to_owned();
+        if !self.components.is_empty() {
+            let reserve = self.components.iter().map(|comp| comp.len() + 1).sum();
+            ret.reserve(reserve);
+        }
         for comp in &self.components {
             ret.push(comp);
         }
@@ -227,6 +231,7 @@ impl TryFrom<&StdPath> for Path {
                 }
             })
             .collect();
+
         Ok(Path { components })
     }
 }

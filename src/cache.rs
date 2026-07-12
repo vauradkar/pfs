@@ -25,6 +25,8 @@ pub(crate) trait Cache: Send {
 
     fn put(&mut self, key: Path, value: FileStat);
 
+    fn contains_key(&self, key: &Path) -> bool;
+
     #[cfg(test)]
     fn stats(&self) -> &CacheStats;
 
@@ -56,6 +58,10 @@ impl Cache for NullCache {
     }
 
     fn put(&mut self, _key: Path, _value: FileStat) {}
+
+    fn contains_key(&self, _key: &Path) -> bool {
+        false
+    }
 
     #[cfg(test)]
     fn stats(&self) -> &CacheStats {

@@ -22,18 +22,24 @@ pub(crate) async fn lookup_or_load(
     path: &StdPath,
     portable_path: &Path,
 ) -> Result<FileStat, Error> {
-    let mut cache = layer.cache.lock().await;
-    if let Some(stats) = cache.get(portable_path) {
-        Ok(stats.clone())
-    } else {
-        drop(cache);
-        use crate::FileStat;
-
-        let stats = FileStat::from_path(path).await?;
+    {
         let mut cache = layer.cache.lock().await;
-        cache.put(portable_path.clone(), stats.clone());
-        Ok(stats)
+        if cache.contains_key(portable_path)
+            && let Some(stats) = cache.get(portable_path)
+        {
+            return Ok(stats.clone());
+        }
     }
+
+    use crate::FileStat;
+    let stats = FileStat::from_path(path).await?;
+
+    let mut cache = layer.cache.lock().await;
+    if let Some(existing) = cache.get(portable_path) {
+        return Ok(existing.clone());
+    }
+    cache.put(portable_path.clone(), stats.clone());
+    Ok(stats)
 }
 
 impl PortableFs {
