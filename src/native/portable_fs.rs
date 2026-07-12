@@ -1,9 +1,9 @@
 use std::path::Path as StdPath;
 use std::sync::Arc;
-use std::sync::MutexGuard;
 
 use log::debug;
 use log::error;
+use tokio::sync::MutexGuard;
 use tokio::sync::mpsc::Sender;
 
 use super::dir_walker::DirWalker;
@@ -22,17 +22,16 @@ pub(crate) async fn lookup_or_load(
     path: &StdPath,
     portable_path: &Path,
 ) -> Result<FileStat, Error> {
-    if let Some(stats) = layer.cache.lock().unwrap().get(portable_path) {
+    let mut cache = layer.cache.lock().await;
+    if let Some(stats) = cache.get(portable_path) {
         Ok(stats.clone())
     } else {
+        drop(cache);
         use crate::FileStat;
 
         let stats = FileStat::from_path(path).await?;
-        layer
-            .cache
-            .lock()
-            .unwrap()
-            .put(portable_path.clone(), stats.clone());
+        let mut cache = layer.cache.lock().await;
+        cache.put(portable_path.clone(), stats.clone());
         Ok(stats)
     }
 }
@@ -209,7 +208,8 @@ impl PortableFs {
             how: e.to_string(),
         });
         if ret.is_ok() {
-            self.get_cache().put(path.clone(), stats.clone());
+            let mut cache = self.get_cache().await;
+            cache.put(path.clone(), stats.clone());
         }
         ret
     }
@@ -217,10 +217,12 @@ impl PortableFs {
     /// Deletes the file at the specified path.
     pub async fn delete_file(&self, path: &Path) -> Result<(), Error> {
         let full_path = self.as_abs_path(path);
-        if !full_path.exists() {
+        let metadata = if let Ok(m) = full_path.metadata() {
+            m
+        } else {
             return Err(Error::InvalidArgument("File does not exist".to_string()));
-        }
-        if full_path.is_dir() {
+        };
+        if metadata.is_dir() {
             return Err(Error::InvalidArgument("Path is a directory".to_string()));
         }
         let ret = tokio::fs::remove_file(&full_path)
@@ -230,7 +232,8 @@ impl PortableFs {
                 how: e.to_string(),
             });
         if ret.is_ok() {
-            self.get_cache().pop(path);
+            let mut cache = self.get_cache().await;
+            cache.pop(path);
         }
         ret
     }
@@ -238,10 +241,12 @@ impl PortableFs {
     /// Reads the contents of the file at the specified path.
     pub async fn read_file(&self, path: &Path) -> Result<Vec<u8>, Error> {
         let full_path = self.as_abs_path(path);
-        if !full_path.exists() {
+        let metadata = if let Ok(m) = full_path.metadata() {
+            m
+        } else {
             return Err(Error::InvalidArgument("File does not exist".to_string()));
-        }
-        if full_path.is_dir() {
+        };
+        if metadata.is_dir() {
             return Err(Error::InvalidArgument("Path is a directory".to_string()));
         }
         tokio::fs::read(&full_path).await.map_err(|e| Error::Read {
@@ -250,8 +255,8 @@ impl PortableFs {
         })
     }
 
-    pub(crate) fn get_cache(&'_ self) -> MutexGuard<'_, Box<dyn Cache>> {
-        self.layer.cache.lock().unwrap()
+    pub(crate) async fn get_cache(&'_ self) -> MutexGuard<'_, Box<dyn Cache>> {
+        self.layer.cache.lock().await
     }
 }
 
@@ -513,44 +518,44 @@ mod tests {
         let fs = PortableFs::with_cache(root.root.path().to_path_buf());
 
         let mut cstats = CacheStats::default();
-        check_len(fs.get_cache().as_ref(), 0);
-        check_len(fs.get_cache().as_ref(), 0);
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        check_len(fs.get_cache().await.as_ref(), 0);
+        check_len(fs.get_cache().await.as_ref(), 0);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
 
         let fpath: &[&str] = &["test_file.txt"];
         let portable_path = Path::try_from(fpath).unwrap();
         let data: &[u8] = b"Hello, world!";
         let stats = write_file(&fs, &portable_path, data).await;
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
 
-        assert_eq!(fs.get_cache().get(&portable_path).unwrap(), &stats);
-        check_len(fs.get_cache().as_ref(), 1);
+        assert_eq!(fs.get_cache().await.get(&portable_path).unwrap(), &stats);
+        check_len(fs.get_cache().await.as_ref(), 1);
         cstats.hits += 1;
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
 
         fs.delete_file(&portable_path).await.unwrap();
-        check_len(fs.get_cache().as_ref(), 0);
-        assert_eq!(fs.get_cache().stats(), &cstats);
-        assert_eq!(fs.get_cache().get(&portable_path), None);
+        check_len(fs.get_cache().await.as_ref(), 0);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
+        assert_eq!(fs.get_cache().await.get(&portable_path), None);
         cstats.misses += 1;
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
 
         let _ = fs
             .read_dir(&Path::try_from(&PathBuf::from("")).unwrap())
             .await;
-        check_len(fs.get_cache().as_ref(), 4);
+        check_len(fs.get_cache().await.as_ref(), 4);
         cstats.misses += 4;
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
 
-        let old_len = fs.get_cache().len();
+        let old_len = fs.get_cache().await.len();
         let _ = fs
             .read_dir_recurse(&Path::try_from(&PathBuf::from("")).unwrap())
             .await
             .unwrap();
-        check_len(fs.get_cache().as_ref(), root.files.len() as u64);
+        check_len(fs.get_cache().await.as_ref(), root.files.len() as u64);
         cstats.hits += old_len;
         cstats.misses += root.files.len() as u64 - old_len;
-        assert_eq!(fs.get_cache().stats(), &cstats);
+        assert_eq!(fs.get_cache().await.stats(), &cstats);
     }
 
     #[tokio::test]

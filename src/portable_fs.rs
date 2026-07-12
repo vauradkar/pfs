@@ -2,8 +2,8 @@ use std::num::NonZeroUsize;
 use std::path::Path as StdPath;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::RwLock;
+use tokio::sync::Mutex;
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::native::FsCache;
