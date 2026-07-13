@@ -47,13 +47,15 @@ tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "rt-multi-t
 tokio = { version = "1.47.1", features = ["macros"] }
 
 [dev-dependencies]
-criterion = "0.4"
 pfs = { path = ".", features = ["test_utils"] }
 serde_json = { version = "1.0.145" }
 tempfile = "3.6"
 tokio-test = "0.4.4"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = "0.4"
+
 [[bench]]
 harness = false
 name = "portable_fs_bench"
-path = "benches/portable_fs_bench.rs"
+path = "benches/benches.rs"

@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 //! Benchmarks for the portable_fs crate.
 //! This file contains benchmarks for the portable_fs crate, which provides a
 //! portable filesystem abstraction.
@@ -9,14 +7,12 @@ use std::path::Path as StdPath;
 use std::path::PathBuf;
 
 use criterion::Criterion;
-use criterion::criterion_group;
-use criterion::criterion_main;
 use pfs::Path;
 use pfs::PortableFs;
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
 
-fn bench_read_dir(c: &mut Criterion) {
+pub(crate) fn bench_read_dir(c: &mut Criterion) {
     let _rt = Runtime::new().unwrap();
     let dir = tempdir().unwrap();
     let root = dir.path().to_path_buf();
@@ -37,7 +33,7 @@ fn bench_read_dir(c: &mut Criterion) {
     });
 }
 
-fn bench_read_dir_recurse(c: &mut Criterion) {
+pub(crate) fn bench_read_dir_recurse(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let dir = tempdir().unwrap();
     let root = dir.path().to_path_buf();
@@ -58,7 +54,7 @@ fn bench_read_dir_recurse(c: &mut Criterion) {
     });
 }
 
-fn bench_read_dir_cached(c: &mut Criterion) {
+pub(crate) fn bench_read_dir_cached(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let dir = tempdir().unwrap();
     let root = dir.path().to_path_buf();
@@ -79,7 +75,7 @@ fn bench_read_dir_cached(c: &mut Criterion) {
     });
 }
 
-fn bench_path_append_to(c: &mut Criterion) {
+pub(crate) fn bench_path_append_to(c: &mut Criterion) {
     let base = StdPath::new("/tmp");
     let path_components: Vec<String> = (0..10).map(|i| format!("comp{}", i)).collect();
     let p = Path::try_from(
@@ -99,7 +95,7 @@ fn bench_path_append_to(c: &mut Criterion) {
     });
 }
 
-fn bench_path_try_from_pathbuf(c: &mut Criterion) {
+pub(crate) fn bench_path_try_from_pathbuf(c: &mut Criterion) {
     let mut path = PathBuf::from("/tmp");
 
     // Generate a random number of components and create a path with multiple
@@ -118,14 +114,3 @@ fn bench_path_try_from_pathbuf(c: &mut Criterion) {
         });
     });
 }
-
-// Define the benchmark group and main function
-criterion_group!(
-    benches,
-    bench_read_dir,
-    bench_read_dir_recurse,
-    bench_read_dir_cached,
-    bench_path_append_to,
-    bench_path_try_from_pathbuf
-);
-criterion_main!(benches);

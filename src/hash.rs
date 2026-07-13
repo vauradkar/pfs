@@ -1,6 +1,7 @@
 //! A helper modeule to build sha256 strings
 #[cfg(not(target_arch = "wasm32"))]
 use std::io::Read;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path as StdPath;
 
 use sha2::Digest;
