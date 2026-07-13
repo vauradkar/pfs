@@ -61,9 +61,7 @@ impl DirWalker {
             None,
             HashMap::new(),
         );
-        dir_walker
-            .walk_recursive(&full_path, 0, &mut items)
-            .await?;
+        dir_walker.walk_recursive(&full_path, 0, &mut items).await?;
         Ok(items)
     }
 
