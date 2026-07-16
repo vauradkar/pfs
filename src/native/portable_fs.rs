@@ -617,10 +617,7 @@ mod tests {
         let root = TestRoot::new(std::thread::current().name()).await.unwrap();
         let fs = PortableFs::with_cache(root.root.path().to_path_buf());
 
-        let items = fs
-            .read_dir_recurse(&Path::empty(), false)
-            .await
-            .unwrap();
+        let items = fs.read_dir_recurse(&Path::empty(), false).await.unwrap();
 
         assert!(!items.is_empty());
         for item in &items {
@@ -635,10 +632,7 @@ mod tests {
 
         // First pass without sha: cache entries are populated, but files
         // have no digest.
-        let without_sha = fs
-            .read_dir_recurse(&Path::empty(), false)
-            .await
-            .unwrap();
+        let without_sha = fs.read_dir_recurse(&Path::empty(), false).await.unwrap();
         let cached_len = fs.get_cache().await.len();
         assert_eq!(cached_len, without_sha.len() as u64);
         for item in &without_sha {

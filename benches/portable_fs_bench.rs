@@ -49,7 +49,8 @@ pub(crate) fn bench_read_dir_recurse(c: &mut Criterion) {
 
     c.bench_function("read_dir_recurse", |b| {
         b.iter(|| {
-            rt.block_on(fs.read_dir_recurse(&portable_path, true)).unwrap();
+            rt.block_on(fs.read_dir_recurse(&portable_path, true))
+                .unwrap();
         });
     });
 }

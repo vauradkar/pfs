@@ -36,8 +36,9 @@ impl FileStat {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempdir::TempDir;
+
+    use super::*;
 
     #[tokio::test]
     async fn from_path_computes_sha256_when_with_sha() {
