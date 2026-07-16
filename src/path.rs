@@ -98,7 +98,7 @@ impl Path {
         let path: PathBuf = base_dir.into();
         self.append_to(&path);
         if path.exists() {
-            Ok(FileStat::from_path(path.as_path()).await?)
+            Ok(FileStat::from_path(path.as_path(), true).await?)
         } else {
             Err(Error::InvalidPath {
                 what: format!("path doesn't exists:{}", path.display()),

@@ -90,7 +90,7 @@ impl TestRoot {
         if let Some(content) = content {
             std::fs::write(&full_path, content)?;
         }
-        let stat = FileStat::from_path(&full_path).await.unwrap();
+        let stat = FileStat::from_path(&full_path, true).await.unwrap();
         self.files.insert(
             relative_path.into(),
             FileNode::new(stat, content.unwrap_or("").as_bytes().to_vec()),
@@ -99,7 +99,7 @@ impl TestRoot {
         let mut parent = StdPath::new(relative_path);
         while let Some(p) = parent.parent() {
             let dir_path = self.root.path().join(p);
-            let dir_stat = FileStat::from_path(&dir_path).await.unwrap();
+            let dir_stat = FileStat::from_path(&dir_path, true).await.unwrap();
             self.files
                 .insert(p.to_path_buf(), (dir_stat, vec![]).into());
             parent = p;
@@ -120,7 +120,7 @@ impl TestRoot {
     }
 
     async fn get_insertable(&self, path: &StdPath) -> Result<(PathBuf, FileNode), Error> {
-        let stats = FileStat::from_path(path).await?;
+        let stats = FileStat::from_path(path, true).await?;
         let relative_path = path
             .strip_prefix(self.root.path())
             .map_err(|e| Error::Read {

@@ -21,23 +21,35 @@ pub(crate) async fn lookup_or_load(
     layer: Arc<FsLayer>,
     path: &StdPath,
     portable_path: &Path,
+    with_sha: bool,
 ) -> Result<FileStat, Error> {
+    // A cached entry satisfies the request if it's a directory (which never
+    // has a sha), the caller doesn't need a sha, or it already has one.
+    fn satisfies(stats: &FileStat, with_sha: bool) -> bool {
+        stats.is_directory || !with_sha || stats.sha256.is_some()
+    }
+
     {
         let mut cache = layer.cache.lock().await;
         if cache.contains_key(portable_path)
             && let Some(stats) = cache.get(portable_path)
+            && satisfies(stats, with_sha)
         {
             return Ok(stats.clone());
         }
     }
 
     use crate::FileStat;
-    let stats = FileStat::from_path(path).await?;
+    let stats = FileStat::from_path(path, with_sha).await?;
 
     let mut cache = layer.cache.lock().await;
-    if let Some(existing) = cache.get(portable_path) {
+    if let Some(existing) = cache.get(portable_path)
+        && satisfies(existing, with_sha)
+    {
         return Ok(existing.clone());
     }
+    // Either not cached yet, or cached without a sha256 that we now have -
+    // update the cache entry.
     cache.put(portable_path.clone(), stats.clone());
     Ok(stats)
 }
@@ -48,11 +60,13 @@ impl PortableFs {
     ///
     /// # Arguments
     /// * `path` - The path to the directory to browse.
+    /// * `with_sha` - Whether to compute a sha256 digest for files. When
+    ///   `false`, file entries are returned with `sha256` set to `None`.
     ///
     /// # Returns
     /// * `Result<Directory, Error>` - The directory entries or an error
     ///   message.
-    pub async fn read_dir(&self, path: &Path) -> Result<Directory, Error> {
+    pub async fn read_dir(&self, path: &Path, with_sha: bool) -> Result<Directory, Error> {
         let full_path = self.as_abs_path(path);
         let mut items = Vec::new();
         for item in DirWalker::walk_dir(
@@ -61,6 +75,7 @@ impl PortableFs {
             self.layer.clone(),
             20,
             Some(0),
+            with_sha,
         )
         .await?
         {
@@ -87,17 +102,24 @@ impl PortableFs {
     ///
     /// # Arguments
     /// * `path` - The path to the directory to browse.
+    /// * `with_sha` - Whether to compute a sha256 digest for files. When
+    ///   `false`, file entries are returned with `sha256` set to `None`.
     ///
     /// # Returns
     /// * `Result<Vec<FileInfo>, Error>` - The directory entries or an error
     ///   message.
-    pub async fn read_dir_recurse(&self, path: &Path) -> Result<Vec<FileInfo>, Error> {
+    pub async fn read_dir_recurse(
+        &self,
+        path: &Path,
+        with_sha: bool,
+    ) -> Result<Vec<FileInfo>, Error> {
         DirWalker::walk_dir(
             self.as_abs_path(path),
             self.base_dir.clone(),
             self.layer.clone(),
             20,
             None,
+            with_sha,
         )
         .await
     }
@@ -143,6 +165,7 @@ impl PortableFs {
             None,
             Some(tx),
             lookup,
+            true,
         );
         if let Err(e) = dir_walker.walk_dir_stream(&full_path).await {
             error!("exchange_deltas error: {}", e);
@@ -298,7 +321,7 @@ mod tests {
         let fs = PortableFs::with_cache(root.root.path().to_path_buf());
 
         let r = fs
-            .read_dir_recurse(&Path::try_from(&StdPath::new("").to_owned()).unwrap())
+            .read_dir_recurse(&Path::try_from(&StdPath::new("").to_owned()).unwrap(), true)
             .await
             .unwrap();
 
@@ -313,7 +336,7 @@ mod tests {
 
         // Browse the directory
         let portable_path = Path::try_from(&StdPath::new("").to_owned()).unwrap();
-        let directory = fs.read_dir(&portable_path).await.unwrap();
+        let directory = fs.read_dir(&portable_path, true).await.unwrap();
 
         // Assert the directory contains the file
         let mut entries: HashSet<String> = ["file1.txt", "file2.txt", "dir1", "dir3"]
@@ -547,7 +570,7 @@ mod tests {
         assert_eq!(fs.get_cache().await.stats(), &cstats);
 
         let _ = fs
-            .read_dir(&Path::try_from(&PathBuf::from("")).unwrap())
+            .read_dir(&Path::try_from(&PathBuf::from("")).unwrap(), true)
             .await;
         check_len(fs.get_cache().await.as_ref(), 4);
         cstats.misses += 4;
@@ -555,7 +578,7 @@ mod tests {
 
         let old_len = fs.get_cache().await.len();
         let _ = fs
-            .read_dir_recurse(&Path::try_from(&PathBuf::from("")).unwrap())
+            .read_dir_recurse(&Path::try_from(&PathBuf::from("")).unwrap(), true)
             .await
             .unwrap();
         check_len(fs.get_cache().await.as_ref(), root.files.len() as u64);
@@ -568,11 +591,94 @@ mod tests {
     async fn test_filtering() {
         let mut pfs = PortableFs::without_cache("./".into());
         pfs.allow_extension("toml");
-        let dir = pfs.read_dir(&Path::empty()).await.unwrap();
+        let dir = pfs.read_dir(&Path::empty(), true).await.unwrap();
         let toml_files = ["Cargo.toml", "rustfmt.toml"];
         for entry in &dir.items {
             assert!(toml_files.contains(&entry.name.as_str()));
         }
         assert_eq!(dir.items.len(), toml_files.len());
+    }
+
+    #[tokio::test]
+    async fn test_read_dir_without_sha_skips_digest() {
+        let root = TestRoot::new(std::thread::current().name()).await.unwrap();
+        let fs = PortableFs::with_cache(root.root.path().to_path_buf());
+
+        let dir = fs.read_dir(&Path::empty(), false).await.unwrap();
+
+        assert!(!dir.items.is_empty());
+        for entry in &dir.items {
+            assert_eq!(entry.stats.sha256, None, "for {}", entry.name);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_dir_recurse_without_sha_skips_digest() {
+        let root = TestRoot::new(std::thread::current().name()).await.unwrap();
+        let fs = PortableFs::with_cache(root.root.path().to_path_buf());
+
+        let items = fs
+            .read_dir_recurse(&Path::empty(), false)
+            .await
+            .unwrap();
+
+        assert!(!items.is_empty());
+        for item in &items {
+            assert_eq!(item.stats.sha256, None, "for {}", item.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_dir_recurse_with_sha_updates_cached_entry() {
+        let root = TestRoot::new(std::thread::current().name()).await.unwrap();
+        let fs = PortableFs::with_cache(root.root.path().to_path_buf());
+
+        // First pass without sha: cache entries are populated, but files
+        // have no digest.
+        let without_sha = fs
+            .read_dir_recurse(&Path::empty(), false)
+            .await
+            .unwrap();
+        let cached_len = fs.get_cache().await.len();
+        assert_eq!(cached_len, without_sha.len() as u64);
+        for item in &without_sha {
+            if !item.stats.is_directory {
+                assert_eq!(
+                    fs.get_cache().await.get(&item.path).unwrap().sha256,
+                    None,
+                    "for {}",
+                    item.path
+                );
+            }
+        }
+
+        // Second pass with sha: existing cache entries are updated in
+        // place, not duplicated, and now carry the correct digest.
+        let with_sha = fs.read_dir_recurse(&Path::empty(), true).await.unwrap();
+        assert_eq!(fs.get_cache().await.len(), cached_len);
+        assert_eq!(with_sha.len(), without_sha.len());
+
+        for item in &with_sha {
+            let full_path = fs.as_abs_path(&item.path);
+            if item.stats.is_directory {
+                assert_eq!(item.stats.sha256, None, "for {}", item.path);
+                continue;
+            }
+            let expected = full_path
+                .as_path()
+                .sha256_build()
+                .await
+                .unwrap()
+                .sha256_string()
+                .await
+                .unwrap();
+            assert_eq!(item.stats.sha256.as_deref(), Some(expected.as_str()));
+            assert_eq!(
+                fs.get_cache().await.get(&item.path).unwrap().sha256,
+                item.stats.sha256,
+                "for {}",
+                item.path
+            );
+        }
     }
 }

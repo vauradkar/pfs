@@ -9,7 +9,7 @@
 //! # use pfs::Path;
 //! let mut pfs = PortableFs::without_cache("./".into());
 //! pfs.allow_extension("toml");
-//! let dir = pfs.read_dir(&Path::empty()).await.unwrap();
+//! let dir = pfs.read_dir(&Path::empty(), true).await.unwrap();
 //! let toml_files = ["Cargo.toml", "rustfmt.toml"];
 //! for entry in &dir.items {
 //!     assert!(toml_files.contains(&entry.name.as_str()));

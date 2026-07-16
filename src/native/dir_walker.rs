@@ -22,9 +22,11 @@ pub(crate) struct DirWalker {
     max_depth: Option<usize>,
     tx: Option<Sender<Vec<FileInfo>>>,
     lookup: HashMap<PathBuf, FileStat>,
+    with_sha: bool,
 }
 
 impl DirWalker {
+    #[allow(clippy::too_many_arguments)]
     pub fn create<P: AsRef<StdPath>>(
         strip_prefix: P,
         layer: Arc<FsLayer>,
@@ -32,6 +34,7 @@ impl DirWalker {
         max_depth: Option<usize>,
         tx: Option<Sender<Vec<FileInfo>>>,
         lookup: HashMap<PathBuf, FileStat>,
+        with_sha: bool,
     ) -> Self {
         Self {
             strip_prefix: strip_prefix.as_ref().to_path_buf(),
@@ -40,15 +43,18 @@ impl DirWalker {
             max_depth,
             tx,
             lookup,
+            with_sha,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn walk_dir<P: AsRef<StdPath>>(
         full_path: P,
         strip_prefix: P,
         layer: Arc<FsLayer>,
         chunk_size: usize,
         max_depth: Option<usize>,
+        with_sha: bool,
     ) -> Result<Vec<FileInfo>, Error> {
         let full_path = full_path.as_ref().to_path_buf();
         let strip_prefix = strip_prefix.as_ref().to_path_buf();
@@ -60,6 +66,7 @@ impl DirWalker {
             max_depth,
             None,
             HashMap::new(),
+            with_sha,
         );
         dir_walker.walk_recursive(&full_path, 0, &mut items).await?;
         Ok(items)
@@ -139,7 +146,13 @@ impl DirWalker {
                 })?
                 .to_owned();
             let portable_path = Path::try_from(&relative_path)?;
-            let stats = lookup_or_load(self.layer.clone(), &entry_path, &portable_path).await?;
+            let stats = lookup_or_load(
+                self.layer.clone(),
+                &entry_path,
+                &portable_path,
+                self.with_sha,
+            )
+            .await?;
             let is_dir = stats.is_directory;
             let filter_level = self
                 .layer
@@ -203,7 +216,7 @@ mod tests {
             fset,
         ));
 
-        let flist = DirWalker::walk_dir(full_path, strip_prefix, layer, 2, None)
+        let flist = DirWalker::walk_dir(full_path, strip_prefix, layer, 2, None, true)
             .await
             .unwrap();
         (root, flist)

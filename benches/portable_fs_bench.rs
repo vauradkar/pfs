@@ -28,7 +28,7 @@ pub(crate) fn bench_read_dir(c: &mut Criterion) {
 
     c.bench_function("read_dir", |b| {
         b.iter(|| {
-            rt.block_on(fs.read_dir(&portable_path)).unwrap();
+            rt.block_on(fs.read_dir(&portable_path, true)).unwrap();
         });
     });
 }
@@ -49,7 +49,7 @@ pub(crate) fn bench_read_dir_recurse(c: &mut Criterion) {
 
     c.bench_function("read_dir_recurse", |b| {
         b.iter(|| {
-            rt.block_on(fs.read_dir_recurse(&portable_path)).unwrap();
+            rt.block_on(fs.read_dir_recurse(&portable_path, true)).unwrap();
         });
     });
 }
@@ -66,11 +66,11 @@ pub(crate) fn bench_read_dir_cached(c: &mut Criterion) {
 
     let fs = PortableFs::with_cache(root.clone());
     let portable_path = Path::empty();
-    rt.block_on(fs.read_dir(&portable_path)).unwrap();
+    rt.block_on(fs.read_dir(&portable_path, true)).unwrap();
 
     c.bench_function("read_dir_cached", |b| {
         b.iter(|| {
-            rt.block_on(fs.read_dir(&portable_path)).unwrap();
+            rt.block_on(fs.read_dir(&portable_path, true)).unwrap();
         });
     });
 }
