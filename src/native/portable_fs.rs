@@ -461,6 +461,66 @@ mod tests {
         assert!(expected_files.is_empty());
         assert!(sync_items.is_empty());
     }
+    #[tokio::test]
+    async fn test_exchange_deltas_none_sha_in_delta() {
+        let root = TestRoot::new(std::thread::current().name()).await.unwrap();
+        let fs = PortableFs::with_cache(root.root.path().to_path_buf());
+
+        let fpath: &[&str] = &["dir1", "delta_none_sha.txt"];
+        let portable_path = Path::try_from(fpath).unwrap();
+        let data: &[u8] = b"hello delta";
+        let stats = write_file(&fs, &portable_path, data).await;
+        assert!(stats.sha256.is_some());
+
+        // First pass with an empty delta: everything in dir1, including our
+        // new file with a real sha256, comes back.
+        let (files, items) = get_deltas_with("dir1", vec![], &fs).await;
+        assert!(files.contains(&portable_path.to_string()));
+        let first_pass = items
+            .iter()
+            .find(|i| i.path == portable_path)
+            .expect("file should be present in first pass");
+        assert_eq!(first_pass.stats, stats);
+
+        // Simulate a caller whose prior listing was fetched with
+        // with_sha=false: every entry it sends back as the "delta" has
+        // sha256 set to None even though size/mtime/is_directory are
+        // otherwise an exact match for what's on disk.
+        let delta_items: Vec<FileInfo> = items
+            .into_iter()
+            .map(|mut item| {
+                item.stats.sha256 = None;
+                item
+            })
+            .collect();
+
+        // Nothing on disk actually changed, but a None sha256 must not be
+        // treated as "matches whatever the real sha is" - files should
+        // still be reported back (with their real sha256 recomputed, not
+        // left as None), while directories (which never carry a sha) are
+        // still correctly recognized as unchanged and skipped.
+        let (files2, items2) = get_deltas_with("dir1", delta_items, &fs).await;
+        assert!(files2.contains(&portable_path.to_string()));
+        let second_pass = items2
+            .iter()
+            .find(|i| i.path == portable_path)
+            .expect("file should still be reported when incoming sha is None");
+        assert_eq!(second_pass.stats, stats);
+
+        for item in &items2 {
+            assert!(
+                !item.stats.is_directory,
+                "unchanged directory {} should not be resent",
+                item.path
+            );
+            assert!(
+                item.stats.sha256.is_some(),
+                "resent file {} should carry a real sha256",
+                item.path
+            );
+        }
+    }
+
     async fn write_file(fs: &PortableFs, portable_path: &Path, data: &[u8]) -> FileStat {
         let modified = SystemTime::now();
         let stats = FileStat {
